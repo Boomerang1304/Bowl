@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bowling Simulator</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; padding: 16px; }
+h1 { font-size: 22px; font-weight: 500; color: #c8c4f4; margin-bottom: 12px; letter-spacing: 0.5px; }
+.game { display: flex; flex-direction: column; gap: 12px; max-width: 900px; margin: 0 auto; }
+.scorecard { background: #16213e; border: 0.5px solid #3a3a5c; border-radius: 8px; padding: 8px 12px; }
+.sc-title { font-size: 11px; color: #888; margin-bottom: 4px; }
+.frames { display: flex; gap: 2px; }
+.frame { border: 0.5px solid #3a3a5c; border-radius: 4px; flex: 1; min-width: 0; background: #0f3460; }
+.frame-balls { display: flex; border-bottom: 0.5px solid #3a3a5c; }
+.ball-box { flex: 1; text-align: center; font-size: 10px; padding: 3px 1px; border-right: 0.5px solid #3a3a5c; color: #aaa; }
+.ball-box:last-child { border-right: none; }
+.ball-box.strike { color: #f0997b; font-weight: 500; }
+.ball-box.spare { color: #85b7eb; font-weight: 500; }
+.frame-score { text-align: center; font-size: 12px; font-weight: 500; padding: 3px; color: #e0e0e0; }
+.frame.active { border-color: #7f77dd; }
+.controls { display: flex; gap: 10px; flex-wrap: wrap; }
+.panel { background: #16213e; border: 0.5px solid #3a3a5c; border-radius: 8px; padding: 10px 14px; flex: 1; min-width: 200px; }
+.panel h3 { font-size: 12px; color: #aaa; font-weight: 500; margin-bottom: 8px; }
+.ctrl-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.ctrl-label { font-size: 11px; color: #aaa; width: 90px; flex-shrink: 0; }
+.ctrl-row input[type=range] { flex: 1; accent-color: #7f77dd; }
+.ctrl-val { font-size: 11px; font-weight: 500; min-width: 40px; text-align: right; color: #e0e0e0; }
+select { font-size: 11px; flex: 1; background: #0f3460; color: #e0e0e0; border: 0.5px solid #3a3a5c; border-radius: 4px; padding: 3px 6px; }
+canvas#laneCanvas { width: 100%; border-radius: 8px; border: 0.5px solid #3a3a5c; display: block; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+button { font-size: 13px; padding: 8px 18px; border-radius: 8px; border: 0.5px solid #3a3a5c; background: #16213e; color: #e0e0e0; cursor: pointer; }
+button:hover { background: #0f3460; }
+button.primary { background: #534ab7; color: white; border-color: #534ab7; }
+button.primary:hover { background: #3c3489; }
+button:disabled { opacity: 0.4; cursor: default; }
+.stat-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.stat { background: #16213e; border: 0.5px solid #3a3a5c; border-radius: 8px; padding: 6px 10px; flex: 1; min-width: 80px; }
+.stat-l { font-size: 10px; color: #888; }
+.stat-v { font-size: 16px; font-weight: 500; color: #e0e0e0; }
+.msg { font-size: 13px; color: #aaa; min-height: 20px; text-align: center; }
+.msg.big { font-size: 18px; font-weight: 500; color: #c8c4f4; }
+.help { font-size: 11px; color: #666; background: #16213e; border: 0.5px solid #3a3a5c; border-radius: 8px; padding: 8px 12px; line-height: 1.6; }
+.help strong { color: #aaa; }
+</style>
+</head>
+<body>
+<div class="game">
+  <h1>🎳 Bowling Simulator</h1>
+
+  <div class="scorecard">
+    <div class="sc-title">Scorecard — Frame <span id="frameNum">1</span> of 10 &nbsp;|&nbsp; Ball <span id="ballNum">1</span></div>
+    <div class="frames" id="scorecard"></div>
+  </div>
+
+  <div class="controls">
+    <div class="panel">
+      <h3>Ball setup</h3>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Ball type</span>
+        <select id="ballType">
+          <option value="plastic">Plastic (straight)</option>
+          <option value="urethane">Urethane (light hook)</option>
+          <option value="sym" selected>Reactive sym.</option>
+          <option value="asym">Reactive asym.</option>
+          <option value="particle">Particle (strong hook)</option>
+        </select>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Weight (lbs)</span>
+        <input type="range" id="weight" min="6" max="16" step="1" value="15">
+        <span class="ctrl-val" id="weightVal">15 lbs</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Rev rate (rpm)</span>
+        <input type="range" id="revRate" min="50" max="450" step="10" value="280">
+        <span class="ctrl-val" id="revVal">280 rpm</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Ball speed</span>
+        <input type="range" id="ballSpeed" min="10" max="24" step="1" value="17">
+        <span class="ctrl-val" id="speedVal">17 mph</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Delivery</h3>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Start position</span>
+        <input type="range" id="startPos" min="-15" max="15" step="0.5" value="5">
+        <span class="ctrl-val" id="startVal">5R</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Release angle</span>
+        <input type="range" id="angle" min="-10" max="10" step="0.5" value="3">
+        <span class="ctrl-val" id="angleVal">3° in</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Axis tilt</span>
+        <input type="range" id="axisTilt" min="0" max="45" step="1" value="15">
+        <span class="ctrl-val" id="tiltVal">15°</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Axis rotation</span>
+        <input type="range" id="axisRot" min="0" max="90" step="5" value="45">
+        <span class="ctrl-val" id="rotVal">45°</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Lane conditions</h3>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Oil pattern</span>
+        <select id="oilPattern">
+          <option value="sport">Sport (35ft)</option>
+          <option value="medium" selected>Medium (42ft)</option>
+          <option value="long">Long (45ft)</option>
+          <option value="flooding">Flooding</option>
+          <option value="dry">Dry (no oil)</option>
+        </select>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Oil volume</span>
+        <input type="range" id="oilVolume" min="10" max="35" step="1" value="22">
+        <span class="ctrl-val" id="oilVal">22 ml</span>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">Lane surface</span>
+        <select id="laneSurface">
+          <option value="wood">Wood</option>
+          <option value="synthetic" selected>Synthetic</option>
+          <option value="old">Old/worn</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat"><div class="stat-l">Entry angle</div><div class="stat-v" id="statEntry">—</div></div>
+    <div class="stat"><div class="stat-l">Hook length</div><div class="stat-v" id="statHook">—</div></div>
+    <div class="stat"><div class="stat-l">Total hook</div><div class="stat-v" id="statTotal">—</div></div>
+    <div class="stat"><div class="stat-l">Speed at pins</div><div class="stat-v" id="statPinSpd">—</div></div>
+    <div class="stat"><div class="stat-l">Pocket hit</div><div class="stat-v" id="statPocket">—</div></div>
+    <div class="stat"><div class="stat-l">Total score</div><div class="stat-v" id="statScore">0</div></div>
+  </div>
+
+  <canvas id="laneCanvas" width="880" height="360"></canvas>
+
+  <div class="btn-row">
+    <button class="primary" id="throwBtn">🎳 Throw ball</button>
+    <button id="resetBtn">New game</button>
+    <button id="autoBtn">Auto spare</button>
+  </div>
+  <div class="msg" id="msgBox">Adjust your settings and throw!</div>
+
+  <div class="help">
+    <strong>Quick tips:</strong> Start position = which board (R=right, L=left). Release angle = direction at foul line. Rev rate + axis rotation = hook shape. Oil pattern = where friction starts. Aim for 4–6° entry angle into the pocket for best strike odds.
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('laneCanvas');
+const ctx = canvas.getContext('2d');
+const W = 880, H = 360;
+canvas.width = W; canvas.height = H;
+
+const LANE_W = 180, LANE_X = (W - LANE_W) / 2;
+const PIN_Y = 80, FOUL_Y = H - 32, APPROACH_Y = H - 10;
+
+let gameState = {
+  frames: Array.from({length:10}, () => ({balls:[], score:null})),
+  currentFrame: 0,
+  totalScore: 0,
+  pinsStanding: [],
+  animating: false,
+  secondBall: false
+};
+
+const PIN_SPACING = 22, PIN_ROW_SPACING = 19, PIN_R = 9;
+
+function initPins() {
+  const pinPositions = [];
+  const rows = [[1], [2, 3], [4, 5, 6], [7, 8, 9, 10]];
+  for (let r = 0; r < 4; r++) {
+    for (let i = 0; i < rows[r].length; i++) {
+      const pinNum = rows[r][i];
+      const rowWidth = (rows[r].length - 1) * PIN_SPACING;
+      const x = LANE_X + LANE_W/2 - rowWidth/2 + i * PIN_SPACING;
+      const y = PIN_Y + (3 - r) * PIN_ROW_SPACING;
+      pinPositions.push({num: pinNum, x, y, standing: true});
+    }
+  }
+  return [1,2,3,4,5,6,7,8,9,10].map(n => pinPositions.find(p => p.num === n));
+}
+
+function getSlider(id) { return parseFloat(document.getElementById(id).value); }
+function getSel(id) { return document.getElementById(id).value; }
+
+function calcHookPhysics() {
+  const ballType = getSel('ballType');
+  const weight = getSlider('weight');
+  const revRate = getSlider('revRate');
+  const speed = getSlider('ballSpeed');
+  const axisTilt = getSlider('axisTilt');
+  const axisRot = getSlider('axisRot');
+  const oilPattern = getSel('oilPattern');
+  const oilVol = getSlider('oilVolume');
+  const surface = getSel('laneSurface');
+
+  const hookPotential = {plastic:0.05, urethane:0.2, sym:0.55, asym:0.75, particle:0.95}[ballType];
+  const oilLength = {sport:35, medium:42, long:45, flooding:50, dry:20}[oilPattern];
+  const surfaceFriction = {wood:1.1, synthetic:1.0, old:1.3}[surface];
+
+  const speedFactor = Math.max(0.4, 1.4 - (speed - 10) * 0.04);
+  const revFactor = revRate / 280;
+  const tiltFactor = 1 - axisTilt / 90 * 0.5;
+  const rotFactor = Math.sin(axisRot * Math.PI / 180);
+  const oilFactor = Math.max(0.1, 1 - oilVol / 35 * 0.6);
+  const oilLenFactor = oilLength / 60;
+
+  const hookMagnitude = hookPotential * speedFactor * revFactor * tiltFactor * rotFactor * oilFactor * surfaceFriction * weight / 15;
+  const hookStart = oilLength / 60 * H * 0.7 + PIN_Y;
+  const hookLength = (1 - oilLenFactor) * (FOUL_Y - PIN_Y) * 0.5 + (FOUL_Y - PIN_Y) * 0.3;
+  const speedAtPins = speed * (1 - 0.05 * oilFactor);
+  const entryAngle = hookMagnitude * 18;
+
+  return {hookMagnitude, hookStart, hookLength, speedAtPins, entryAngle, oilLength};
+}
+
+function calcBallPath() {
+  const startPos = getSlider('startPos');
+  const angle = getSlider('angle');
+  const physics = calcHookPhysics();
+  const laneCenter = LANE_X + LANE_W / 2;
+  const boardWidth = LANE_W / 39;
+  const startX = laneCenter + startPos * boardWidth;
+  const dx = -angle * boardWidth * 0.8;
+  const targetX = startX + dx * ((FOUL_Y - PIN_Y) / H);
+  const hookMag = physics.hookMagnitude * LANE_W * 0.32;
+  const hookDir = angle >= 0 ? -1 : 1;
+  const path = [];
+  const gutterLeft = LANE_X - 10;
+  const gutterRight = LANE_X + LANE_W + 10;
+  for (let i = 0; i <= 80; i++) {
+    const t = i / 80;
+    const y = FOUL_Y - t * (FOUL_Y - PIN_Y);
+    let hookT = 0;
+    if (y < physics.hookStart) {
+      hookT = Math.min(1, Math.pow((physics.hookStart - y) / physics.hookLength, 1.5));
+    }
+    const linearX = startX + (targetX - startX) * t;
+    const x = linearX + hookDir * hookMag * hookT;
+    path.push({x, y, t});
+    if (x < gutterLeft || x > gutterRight) break;
+  }
+  if (path.length === 0) path.push({x: startX, y: FOUL_Y, t: 0});
+  return {path, physics, startX};
+}
+
+function drawOilPattern(oilPattern, oilLength, oilVol) {
+  const oilY = PIN_Y + (oilLength / 60) * (FOUL_Y - PIN_Y) * 0.95;
+  const patterns = {
+    sport:[[0,1],[0.2,0.6],[0.4,0.4],[0.6,0.3]],
+    medium:[[0,1],[0.3,0.8],[0.5,0.6],[0.7,0.3]],
+    long:[[0,1],[0.4,1],[0.6,0.8],[0.8,0.4]],
+    flooding:[[0,1],[0.5,1],[0.8,0.9],[1,0.8]],
+    dry:[[0,0.2],[0.5,0.15],[1,0.05]]
+  };
+  const pts = patterns[oilPattern] || patterns.medium;
+  const oilAlpha = Math.min(0.3, oilVol / 35 * 0.3);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(LANE_X, PIN_Y, LANE_W, oilY - PIN_Y); ctx.clip();
+  for (let x = LANE_X; x < LANE_X + LANE_W; x += 3) {
+    const relX = (x - LANE_X) / LANE_W;
+    const distFromCenter = Math.abs(relX - 0.5) * 2;
+    let oilHere = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (distFromCenter >= pts[i][0] && distFromCenter <= pts[i+1][0]) {
+        const f = (distFromCenter - pts[i][0]) / (pts[i+1][0] - pts[i][0]);
+        oilHere = pts[i][1] + f * (pts[i+1][1] - pts[i][1]);
+        break;
+      }
+    }
+    if (distFromCenter <= pts[0][0]) oilHere = pts[0][1];
+    ctx.fillStyle = `rgba(100,180,255,${oilAlpha * oilHere})`;
+    ctx.fillRect(x, PIN_Y, 3, oilY - PIN_Y);
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(100,180,255,0.4)';
+  ctx.setLineDash([4,4]); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(LANE_X, oilY); ctx.lineTo(LANE_X + LANE_W, oilY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(100,180,255,0.6)';
+  ctx.font = '9px system-ui';
+  ctx.fillText('oil line', LANE_X + LANE_W + 6, oilY + 3);
+}
+
+function drawLane() {
+  const oilPattern = getSel('oilPattern');
+  const oilVol = getSlider('oilVolume');
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#c49a4a';
+  ctx.fillRect(LANE_X, PIN_Y - 40, LANE_W, FOUL_Y - PIN_Y + 40);
+  ctx.fillStyle = '#b8874a';
+  ctx.fillRect(LANE_X, PIN_Y - 40, LANE_W, PIN_ROW_SPACING * 4 + PIN_R * 2 + 10);
+  for (let i = 0; i <= 39; i++) {
+    const x = LANE_X + (i / 39) * LANE_W;
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)'; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(x, PIN_Y); ctx.lineTo(x, FOUL_Y); ctx.stroke();
+  }
+  const dotY = FOUL_Y - (FOUL_Y - PIN_Y) * 0.12;
+  const arrowY = FOUL_Y - (FOUL_Y - PIN_Y) * 0.35;
+  for (let d = 0; d < 7; d++) {
+    const dx = LANE_X + ((d + 1) / 8) * LANE_W;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.arc(dx, dotY, 3, 0, Math.PI*2); ctx.fill();
+    ctx.save(); ctx.translate(dx, arrowY);
+    ctx.beginPath(); ctx.moveTo(0,7); ctx.lineTo(-5,-5); ctx.lineTo(0,-2); ctx.lineTo(5,-5); ctx.closePath();
+    ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fill(); ctx.restore();
+  }
+  drawOilPattern(oilPattern, {sport:35,medium:42,long:45,flooding:50,dry:20}[oilPattern], oilVol);
+  ctx.fillStyle = 'rgba(80,50,20,0.5)';
+  ctx.fillRect(LANE_X - 50, PIN_Y - 40, 50, FOUL_Y - PIN_Y + 40);
+  ctx.fillRect(LANE_X + LANE_W, PIN_Y - 40, 50, FOUL_Y - PIN_Y + 40);
+  ctx.strokeStyle = 'rgba(220,60,60,0.8)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(LANE_X - 5, FOUL_Y); ctx.lineTo(LANE_X + LANE_W + 5, FOUL_Y); ctx.stroke();
+  ctx.fillStyle = 'rgba(220,60,60,0.8)'; ctx.font = '9px system-ui';
+  ctx.fillText('foul line', LANE_X + LANE_W + 8, FOUL_Y + 3);
+  ctx.fillStyle = '#555';
+  ctx.fillRect(LANE_X, FOUL_Y, LANE_W, APPROACH_Y - FOUL_Y);
+}
+
+function drawPins(pins) {
+  pins.forEach(pin => {
+    if (!pin.standing) {
+      ctx.beginPath(); ctx.arc(pin.x, pin.y, PIN_R, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(100,70,30,0.35)';
+      ctx.fill();
+      return;
+    }
+    ctx.beginPath(); ctx.arc(pin.x + 2, pin.y + 2, PIN_R, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(pin.x, pin.y, PIN_R, 0, Math.PI*2);
+    ctx.fillStyle = '#ffffff'; ctx.fill();
+    ctx.strokeStyle = '#bbb'; ctx.lineWidth = 1.2; ctx.stroke();
+    const highlight = ctx.createRadialGradient(pin.x - 3, pin.y - 3, 1, pin.x, pin.y, PIN_R);
+    highlight.addColorStop(0, 'rgba(255,255,255,0.7)');
+    highlight.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.beginPath(); ctx.arc(pin.x, pin.y, PIN_R, 0, Math.PI*2);
+    ctx.fillStyle = highlight; ctx.fill();
+    ctx.fillStyle = '#444'; ctx.font = `bold 8px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(pin.num, pin.x, pin.y + 1);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  });
+}
+
+function drawPath(path, progress) {
+  if (!path || path.length < 2) return;
+  const end = Math.floor(progress * (path.length - 1));
+  ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y);
+  for (let i = 1; i <= end; i++) ctx.lineTo(path[i].x, path[i].y);
+  ctx.strokeStyle = 'rgba(140,130,240,0.6)'; ctx.lineWidth = 2.5;
+  ctx.setLineDash([5,4]); ctx.stroke(); ctx.setLineDash([]);
+  if (end > 0) {
+    const pt = path[end];
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, 8, 0, Math.PI*2);
+    ctx.fillStyle = '#7f77dd'; ctx.fill();
+    ctx.strokeStyle = '#534ab7'; ctx.lineWidth = 2; ctx.stroke();
+  }
+}
+
+function buildScorecard() {
+  const sc = document.getElementById('scorecard');
+  sc.innerHTML = '';
+  for (let f = 0; f < 10; f++) {
+    const frame = gameState.frames[f];
+    const div = document.createElement('div');
+    div.className = 'frame' + (f === gameState.currentFrame ? ' active' : '');
+    const numBalls = f === 9 ? 3 : 2;
+    const ballsHtml = Array.from({length: numBalls}, (_, b) => {
+      const v = frame.balls[b];
+      let cls = '', txt = v === undefined ? '' : v;
+      if (v === 10 && b === 0) { cls = 'strike'; txt = 'X'; }
+      else if (v === 10 && b === 1 && f !== 9) { cls = 'spare'; txt = '/'; }
+      else if (v !== undefined && b > 0 && frame.balls[b-1] + v === 10 && f !== 9) { cls = 'spare'; txt = '/'; }
+      else if (v === 0) txt = '-';
+      return `<div class="ball-box ${cls}">${txt}</div>`;
+    }).join('');
+    div.innerHTML = `<div class="frame-balls">${ballsHtml}</div><div class="frame-score">${frame.score !== null ? frame.score : ''}</div>`;
+    sc.appendChild(div);
+  }
+}
+
+function calcScores() {
+  const frames = gameState.frames;
+  let running = 0;
+  for (let f = 0; f < 10; f++) {
+    const fr = frames[f];
+    if (fr.balls.length === 0) { fr.score = null; continue; }
+    if (f < 9) {
+      if (fr.balls[0] === 10) {
+        const b1 = frames[f+1]?.balls[0] ?? null;
+        let b2 = frames[f+1]?.balls[1] ?? null;
+        if (b1 === 10 && f+1 < 9) b2 = frames[f+2]?.balls[0] ?? null;
+        if (b1 === null || b2 === null) { fr.score = null; continue; }
+        running += 10 + b1 + b2; fr.score = running;
+      } else if (fr.balls.length === 2 && fr.balls[0] + fr.balls[1] === 10) {
+        const b1 = frames[f+1]?.balls[0] ?? null;
+        if (b1 === null) { fr.score = null; continue; }
+        running += 10 + b1; fr.score = running;
+      } else if (fr.balls.length === 2) {
+        running += fr.balls[0] + fr.balls[1]; fr.score = running;
+      } else { fr.score = null; }
+    } else {
+      const total = fr.balls.reduce((a,b) => a+b, 0);
+      if ((fr.balls[0] === 10 || (fr.balls.length >= 2 && fr.balls[0]+fr.balls[1]===10)) && fr.balls.length < 3) { fr.score = null; }
+      else { running += total; fr.score = running; }
+    }
+  }
+  gameState.totalScore = running;
+  document.getElementById('statScore').textContent = running;
+}
+
+function determinePinsDown(pathEnd, physics) {
+  if (!pathEnd) return [];
+  const pinsStanding = gameState.pinsStanding;
+  const laneLeft = LANE_X, laneRight = LANE_X + LANE_W;
+  if (pathEnd.x < laneLeft - 8 || pathEnd.x > laneRight + 8) return [];
+  const pocketHit = Math.abs(pathEnd.x - (LANE_X + LANE_W/2)) < LANE_W * 0.15;
+  const headPin = pinsStanding.find(p => p.num === 1);
+  if (!headPin || !headPin.standing) {
+    return pinsStanding.filter(p => p.standing && Math.hypot(p.x - pathEnd.x, p.y - pathEnd.y) < 20).map(p => p.num);
+  }
+  const dist = Math.hypot(pathEnd.x - headPin.x, pathEnd.y - headPin.y);
+  if (dist > 18) {
+    return pinsStanding.filter(p => p.standing && Math.hypot(p.x - pathEnd.x, p.y - pathEnd.y) < 16).map(p => p.num);
+  }
+  if (pocketHit && physics.entryAngle > 3.5) {
+    const roll = Math.random();
+    if (roll < 0.65) return pinsStanding.filter(p => p.standing).map(p => p.num);
+    if (roll < 0.82) { const leave=[Math.random()<0.5?7:10]; return pinsStanding.filter(p=>p.standing&&!leave.includes(p.num)).map(p=>p.num); }
+    if (roll < 0.91) { const leave=[7,10]; return pinsStanding.filter(p=>p.standing&&!leave.includes(p.num)).map(p=>p.num); }
+    const leaves=[[4,7],[6,10],[3,6,10],[2,4,7],[4,7,8]];
+    const leave=leaves[Math.floor(Math.random()*leaves.length)];
+    return pinsStanding.filter(p=>p.standing&&!leave.includes(p.num)).map(p=>p.num);
+  }
+  const leftHit = pathEnd.x < LANE_X + LANE_W/2;
+  if (leftHit) {
+    const core=[1,2,4,7,8].filter(n=>{ const p=pinsStanding.find(q=>q.num===n); return p&&p.standing; });
+    const extras=[3,5,9].filter(n=>{ const p=pinsStanding.find(q=>q.num===n); return p&&p.standing&&Math.random()<0.4; });
+    return [...core,...extras];
+  } else {
+    const core=[1,3,6,9,10].filter(n=>{ const p=pinsStanding.find(q=>q.num===n); return p&&p.standing; });
+    const extras=[2,5,8].filter(n=>{ const p=pinsStanding.find(q=>q.num===n); return p&&p.standing&&Math.random()<0.4; });
+    return [...core,...extras];
+  }
+}
+
+// Knock a pin and propagate to nearby pins (simple pin-to-pin collision model)
+function propagateKnock(pinIdx, force=1) {
+  const pins = gameState.pinsStanding;
+  const origin = pins[pinIdx];
+  if (!origin) return;
+  const knockRadius = 28 + force * 10; // how far this knock can reach
+  for (let i = 0; i < pins.length; i++) {
+    if (i === pinIdx) continue;
+    const p = pins[i];
+    if (!p || !p.standing) continue;
+    const d = Math.hypot(p.x - origin.x, p.y - origin.y);
+    if (d <= knockRadius) {
+      // probability based on distance and force
+      const prob = Math.max(0.25, 1 - d / (knockRadius * 1.1));
+      if (Math.random() < prob) {
+        p.standing = false;
+        // chained, with slightly reduced force
+        propagateKnock(i, force * 0.6);
+      }
+    }
+  }
+}
+
+function knockPinAtIndex(i) {
+  const p = gameState.pinsStanding[i];
+  if (!p || !p.standing) return false;
+  p.standing = false;
+  propagateKnock(i, 1);
+  return true;
+}
+
+function throwBall() {
+  if (gameState.animating || gameState.currentFrame >= 10) return;
+  gameState.animating = true;
+  document.getElementById('throwBtn').disabled = true;
+  if (!gameState.secondBall) gameState.pinsStanding = initPins();
+  const {path, physics} = calcBallPath();
+  const speed = getSlider('ballSpeed');
+  const duration = 1200 / (speed / 14);
+  const startTime = performance.now();
+  // keep snapshot of pins before this throw to compute how many fell
+  const beforeStanding = gameState.pinsStanding.map(p => p && p.standing);
+  let lastChecked = -1;
+  function animate(now) {
+    const progress = Math.min(1, (now - startTime) / duration);
+    const endIndex = Math.floor(progress * (path.length - 1));
+    // check new path points for collisions
+    for (let idx = lastChecked + 1; idx <= endIndex; idx++) {
+      const pt = path[idx];
+      if (!pt) continue;
+      // detect any standing pin within collision distance
+      for (let i = 0; i < gameState.pinsStanding.length; i++) {
+        const p = gameState.pinsStanding[i];
+        if (!p || !p.standing) continue;
+        const d = Math.hypot(p.x - pt.x, p.y - pt.y);
+        if (d < 18) {
+          // ball hit this pin
+          p.standing = false;
+          // propagate pin-to-pin knocks
+          propagateKnock(i, 1);
+        }
+      }
+    }
+    lastChecked = Math.max(lastChecked, endIndex);
+    drawLane(); drawPins(gameState.pinsStanding); drawPath(path, progress);
+    if (progress < 1) { requestAnimationFrame(animate); return; }
+    const endPt = path[path.length - 1] || {x: LANE_X + LANE_W/2, y: PIN_Y};
+    // calculate which pins fell during the throw
+    const pinsDown = [];
+    for (let i = 0; i < beforeStanding.length; i++) {
+      if (beforeStanding[i] && !gameState.pinsStanding[i].standing) pinsDown.push(gameState.pinsStanding[i].num);
+    }
+    drawLane(); drawPins(gameState.pinsStanding);
+    const gutterBall = endPt.x < LANE_X - 8 || endPt.x > LANE_X + LANE_W + 8;
+    const pocketHit = !gutterBall && Math.abs(endPt.x - (LANE_X + LANE_W/2)) < LANE_W * 0.15;
+    const standingCount = gameState.pinsStanding.filter(p=>p.standing).length;
+    document.getElementById('statEntry').textContent = physics.entryAngle.toFixed(1)+'°';
+    document.getElementById('statHook').textContent = Math.round(physics.oilLength)+' ft';
+    document.getElementById('statTotal').textContent = Math.round(physics.hookMagnitude * LANE_W * 0.32)+' boards';
+    document.getElementById('statPinSpd').textContent = physics.speedAtPins.toFixed(1)+' mph';
+    document.getElementById('statPocket').textContent = gutterBall ? 'Gutter 🚫' : pocketHit ? (physics.entryAngle>3.5?'Pocket ✓':'Light') : (endPt.x<LANE_X+LANE_W/2?'Brooklyn':'Wide');
+    const f = gameState.currentFrame;
+    const fr = gameState.frames[f];
+    function setMsg(txt, big) { document.getElementById('msgBox').textContent=txt; document.getElementById('msgBox').className=big?'msg big':'msg'; }
+    if (f < 9) {
+      if (!gameState.secondBall) {
+        fr.balls.push(pinsDown.length);
+        if (pinsDown.length === 10) {
+          setMsg('Strike! 🎳', true);
+          gameState.currentFrame++; gameState.secondBall=false;
+        } else {
+          setMsg(gutterBall ? `Gutter ball! ${standingCount} pins left.` : `${pinsDown.length} pins down. ${standingCount} standing.`, false);
+          gameState.secondBall=true;
+        }
+      } else {
+        fr.balls.push(pinsDown.length);
+        if (standingCount===0) setMsg('Spare! 👏', true);
+        else setMsg(`${pinsDown.length} more down. ${standingCount} left.`, false);
+        gameState.currentFrame++; gameState.secondBall=false;
+      }
+    } else {
+      fr.balls.push(pinsDown.length);
+      const b = fr.balls.length;
+      const b0 = fr.balls[0] || 0;
+      const b1 = fr.balls[1] || 0;
+      if (b === 1) {
+        if (pinsDown.length === 10) { gameState.pinsStanding=initPins(); setMsg('Strike in 10th! Keep going!', true); }
+        else { setMsg(`${pinsDown.length} down. ${standingCount} left.`, false); }
+      } else if (b === 2) {
+        const firstStrike = b0 === 10;
+        const spare = !firstStrike && b0 + b1 === 10;
+        const secondStrike = firstStrike && b1 === 10;
+        if (secondStrike) { gameState.pinsStanding=initPins(); setMsg('Double! One more ball!', true); }
+        else if (firstStrike) { setMsg(`${pinsDown.length} more. ${standingCount} left.`, false); }
+        else if (spare) { gameState.pinsStanding=initPins(); setMsg('Spare in 10th! Bonus ball!', true); }
+        else { gameState.currentFrame=10; setMsg(`Game over! Final score coming...`, false); }
+      } else if (b === 3) {
+        setMsg(standingCount===0 ? 'Perfect finish! 🦃' : `Game over! Final score: ${gameState.totalScore}`, standingCount===0);
+        gameState.currentFrame=10;
+      }
+    }
+    calcScores(); buildScorecard();
+    document.getElementById('frameNum').textContent=Math.min(gameState.currentFrame+1,10);
+    document.getElementById('ballNum').textContent=gameState.secondBall?2:1;
+    document.getElementById('throwBtn').disabled=gameState.currentFrame>=10;
+    gameState.animating=false;
+  }
+  requestAnimationFrame(animate);
+}
+
+function resetGame() {
+  gameState = { frames:Array.from({length:10},()=>({balls:[],score:null})), currentFrame:0, totalScore:0, pinsStanding:initPins(), animating:false, secondBall:false };
+  ['statEntry','statHook','statTotal','statPinSpd','statPocket'].forEach(id=>document.getElementById(id).textContent='—');
+  document.getElementById('statScore').textContent='0';
+  document.getElementById('msgBox').textContent='Adjust your settings and throw!'; document.getElementById('msgBox').className='msg';
+  document.getElementById('throwBtn').disabled=false;
+  buildScorecard(); drawLane(); drawPins(gameState.pinsStanding);
+  document.getElementById('frameNum').textContent='1'; document.getElementById('ballNum').textContent='1';
+}
+
+function autoSpare() {
+  if (gameState.animating || gameState.currentFrame>=10 || !gameState.secondBall) return;
+  const remaining = gameState.pinsStanding.filter(p=>p.standing);
+  remaining.forEach(p=>p.standing=false);
+  const fr = gameState.frames[gameState.currentFrame];
+  fr.balls.push(remaining.length);
+  drawLane(); drawPins(gameState.pinsStanding);
+  document.getElementById('msgBox').textContent='Spare! (auto-converted)'; document.getElementById('msgBox').className='msg big';
+  gameState.currentFrame++; gameState.secondBall=false;
+  calcScores(); buildScorecard();
+  document.getElementById('frameNum').textContent=Math.min(gameState.currentFrame+1,10);
+  document.getElementById('ballNum').textContent='1';
+  document.getElementById('throwBtn').disabled=gameState.currentFrame>=10;
+}
+
+const sliders = [
+  ['weight','weightVal',v=>v+' lbs'],['revRate','revVal',v=>v+' rpm'],['ballSpeed','speedVal',v=>v+' mph'],
+  ['oilVolume','oilVal',v=>v+' ml'],['axisTilt','tiltVal',v=>v+'°'],['axisRot','rotVal',v=>v+'°'],
+  ['startPos','startVal',v=>v==0?'center':(v>0?v+'R':Math.abs(v)+'L')],
+  ['angle','angleVal',v=>v==0?'0° straight':(v>0?v+'° in':Math.abs(v)+'° out')]
+];
+sliders.forEach(([id,outId,fmt])=>{
+  const el=document.getElementById(id), out=document.getElementById(outId);
+  el.addEventListener('input',()=>{ out.textContent=fmt(el.value); drawLane(); drawPins(gameState.pinsStanding); });
+});
+['ballType','oilPattern','laneSurface'].forEach(id=>{
+  document.getElementById(id).addEventListener('change',()=>{ drawLane(); drawPins(gameState.pinsStanding); });
+});
+document.getElementById('throwBtn').addEventListener('click', throwBall);
+document.getElementById('resetBtn').addEventListener('click', resetGame);
+document.getElementById('autoBtn').addEventListener('click', autoSpare);
+resetGame();
+</script>
+</body>
+</html>
